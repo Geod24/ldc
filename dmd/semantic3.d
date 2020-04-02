@@ -607,8 +607,15 @@ version (IN_LLVM)
                     }
                 }
 
-                if (!funcdecl.inferRetType && !target.isReturnOnStack(f, funcdecl.needThis()))
-                    funcdecl.nrvo_can = 0;
+                if (!funcdecl.inferRetType)
+                {
+                    if (!target.isReturnOnStack(f, funcdecl.needThis()))
+                    {
+                        if (sc.flags & SCOPE.nrvo)
+                            funcdecl.error("cannot do NRVO here");
+                        funcdecl.nrvo_can = 0;
+                    }
+                }
 
                 bool inferRef = (f.isref && (funcdecl.storage_class & STC.auto_));
 
@@ -663,8 +670,14 @@ version (IN_LLVM)
                 }
 
                 // handle NRVO
-                if (!target.isReturnOnStack(f, funcdecl.needThis()) || funcdecl.checkNrvo())
+                if (!target.isReturnOnStack(f, funcdecl.needThis()))
                     funcdecl.nrvo_can = 0;
+                else if (funcdecl.checkNrvo())
+                {
+                    if (sc.flags & SCOPE.nrvo)
+                        funcdecl.error("cannot do NRVO here");
+                    funcdecl.nrvo_can = 0;
+                }
 
                 if (funcdecl.fbody.isErrorStatement())
                 {

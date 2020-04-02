@@ -1315,7 +1315,18 @@ extern (C++) final class UserAttributeDeclaration : AttribDeclaration
             // create new one for changes
             sc2 = sc.copy();
             sc2.userAttribDecl = this;
+
+            foreach (e; *this.atts)
+            {
+                auto ts = (e && e.type) ? e.type.isTypeStruct() : null;
+                if (ts && ts.sym && ts.sym.ident == Id.nrvo)
+                {
+                    sc2.flags |= SCOPE.nrvo;
+                    break;
+                }
+            }
         }
+
         return sc2;
     }
 

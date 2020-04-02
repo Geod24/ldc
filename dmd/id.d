@@ -466,6 +466,7 @@ immutable Msgtable[] msgtable =
 
     // Compiler recognized UDA's
     { "udaSelector", "selector" },
+    { "nrvo" },
 
     // C names, for undefined identifier error messages
     { "NULL" },
@@ -501,7 +502,7 @@ immutable Msgtable[] msgtable =
     // IN_LLVM: LDC-specific traits.
     { "targetCPU" },
     { "targetHasFeature" },
-    
+
     // IN_LLVM: LDC-specific attributes
     { "ldc" },
     { "attributes" },
@@ -519,7 +520,7 @@ immutable Msgtable[] msgtable =
     { "udaDynamicCompile", "_dynamicCompile" },
     { "udaDynamicCompileConst", "_dynamicCompileConst" },
     { "udaDynamicCompileEmit", "_dynamicCompileEmit" },
-    
+
     // IN_LLVM: DCompute specific types and functionss
     { "dcompute" },
     { "dcPointer", "Pointer" },
