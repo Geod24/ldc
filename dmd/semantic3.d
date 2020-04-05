@@ -611,7 +611,7 @@ version (IN_LLVM)
                 {
                     if (!target.isReturnOnStack(f, funcdecl.needThis()))
                     {
-                        if (sc.flags & SCOPE.nrvo)
+                        if ((sc.flags & SCOPE.nrvo) || funcdecl.mustNRVO)
                             funcdecl.error("cannot do NRVO here");
                         funcdecl.nrvo_can = 0;
                     }
@@ -671,13 +671,19 @@ version (IN_LLVM)
 
                 // handle NRVO
                 if (!target.isReturnOnStack(f, funcdecl.needThis()))
-                    funcdecl.nrvo_can = 0;
-                else if (funcdecl.checkNrvo())
                 {
-                    if (sc.flags & SCOPE.nrvo)
+                    if ((sc.flags & SCOPE.nrvo) || funcdecl.mustNRVO)
                         funcdecl.error("cannot do NRVO here");
                     funcdecl.nrvo_can = 0;
                 }
+                else if (funcdecl.checkNrvo((sc.flags & SCOPE.nrvo) || funcdecl.mustNRVO))
+                {
+                    if ((sc.flags & SCOPE.nrvo) || funcdecl.mustNRVO)
+                        funcdecl.error("cannot do NRVO here");
+                    funcdecl.nrvo_can = 0;
+                }
+                else if ((sc.flags & SCOPE.nrvo) || funcdecl.mustNRVO)
+                    printf("Could do NRVO on %s\n", funcdecl.toChars());
 
                 if (funcdecl.fbody.isErrorStatement())
                 {

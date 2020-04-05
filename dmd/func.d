@@ -249,6 +249,9 @@ version (IN_LLVM)
     // Whether to emit instrumentation code if -fprofile-instr-generate is specified,
     // the value is set with pragma(LDC_profile_instr, true|false)
     bool emitInstrumentation = true;
+
+    /// Whether to force NRVO check
+    bool mustNRVO = false;
 }
 
     VarDeclaration vresult;             /// result variable for out contracts
@@ -2523,29 +2526,44 @@ version (IN_LLVM)
      * Returns:
      *      true if the result cannot be returned by hidden reference.
      */
-    final bool checkNrvo()
+    final bool checkNrvo(bool force = false)
     {
-        if (!nrvo_can)
+        if (!nrvo_can && !this.mustNRVO)
+        {
+            if (force)
+                this.error("previously set nrvo_can");
             return true;
+        }
 
         if (returns is null)
+        {
+            if (force)
+                printf("%s: returns is null\n", this.toChars());
             return true;
+        }
 
+        // Function returns a reference
         auto tf = type.toTypeFunction();
+        if (tf.isref)
+        {
+            if (force)
+                this.error("cannot do nrvo on `ref` returns for `%s`", this.toChars());
+            return true;
+        }
 
+        bool hasCall = false;
         foreach (rs; *returns)
         {
             if (rs.exp.op == TOK.variable)
             {
                 auto ve = cast(VarExp)rs.exp;
                 auto v = ve.var.isVarDeclaration();
-                if (tf.isref)
+                if (!v || v.isOut() || v.isRef())
                 {
-                    // Function returns a reference
+                    if (force)
+                        this.error("can't do NRVO because one of the return is ref or out");
                     return true;
                 }
-                else if (!v || v.isOut() || v.isRef())
-                    return true;
                 else if (nrvo_var is null)
                 {
                     if (!v.isDataseg() && !v.isParameter() && v.toParent2() == this)
@@ -2554,10 +2572,60 @@ version (IN_LLVM)
                         nrvo_var = v;
                     }
                     else
+                    {
+                        if (force)
+                            this.error("cannot perform NRVO on variable %s\n", v.toChars());
                         return true;
+                    }
                 }
                 else if (nrvo_var != v)
+                {
+                    if (force)
+                        this.error("cannot perform NRVO when multiple variables are being returned: %s and %s\n",
+                                   nrvo_var.toChars(), v.toChars());
                     return true;
+                }
+                else if (hasCall)
+                {
+                    if (force)
+                        this.error("cannot perform NRVO when mixing function calls with variable %s\n",
+                                   v.toChars());
+                    return true;
+                }
+            }
+            else if (rs.exp.op == TOK.call)
+            {
+                auto fwd = rs.exp ? rs.exp.isCallExp() : null;
+                if (!fwd || !fwd.f)
+                {
+                    if (force)
+                        printf("Non resolved: %s => %s\n", this.toChars(), rs.exp.toChars());
+                    return true;
+                }
+                fwd.f.mustNRVO = fwd.f.mustNRVO || force;
+                if (fwd.f.semanticRun >= PASS.semantic3done)
+                {
+                    if (force)
+                        printf("Function %s has already finished semantic3, trying checkNrvo\n",
+                               fwd.f.toChars());
+                    if (fwd.f.checkNrvo(force))
+                    {
+                        if (force)
+                            errorSupplemental(fwd.loc, "called from `%s` (declared: %s)",
+                                              this.toChars(), this.loc.toChars());
+                        return true;
+                    }
+                    else if (force)
+                        printf("WARN: NRVO might not be performed on call at %s\n",
+                               fwd.toChars());
+                }
+                hasCall = true;
+            }
+            else if (force)
+            {
+                this.error("cannot do NRVO because return expression is a %s",
+                           Token.toChars(rs.exp.op));
+                return true;
             }
             else //if (!exp.isLvalue())    // keep NRVO-ability
                 return true;
